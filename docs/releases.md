@@ -24,6 +24,8 @@ Before creating a tag:
 
 Platform code signing and notarization require the relevant platform identities. Unsigned artifacts must remain clearly identified until those identities and verification steps are configured.
 
+The release workflow smoke-tests the Linux amd64, Linux arm64, macOS arm64 and Windows amd64 archives on real runners of that architecture before publishing. A host product that installs the pinned Linux helper (October Desktop's Agents Anywhere release) verifies the archive against `checksums.txt` and the build-provenance attestation; the exact commands are in [desktop-remote-integration.md](desktop-remote-integration.md).
+
 ## npm CLI and TypeScript distribution
 
 The npm package uses pre-1.0 versions. From `0.1.0-next.14`, it contains both the TypeScript SDK and a Node launcher for the native Go daemon. Six exact-version optional dependencies, named `@october-dev/october-bus-{darwin,linux,win32}-{x64,arm64}`, carry the prebuilt executables. The launcher does not download binaries, execute a shell, or fall back to PATH. Linux builds use `CGO_ENABLED=0`, so a separate musl package is unnecessary.

@@ -1,12 +1,24 @@
 # Host-managed MCP connections
 
-October Desktop and other host controllers can run the native Bus stdio bridge
-against their existing MCP authority. The bridge does not start another daemon,
-create a scope, or require a copy of the controller's administrator credential.
+October Desktop and other host controllers can run the native Bus helper against
+their existing MCP authority. The helper does not start another daemon, create a
+scope, or require a copy of the controller's administrator credential. One binary
+provides the MCP bridge, the lifecycle hook and a setup check:
 
 ```sh
 october-bus mcp stdio --connection-file /absolute/private/connection.json
+october-bus hook [--connection-file <path>] <event> [<flavor>]
+october-bus mcp check [--connection-file <path>] [--json]
 ```
+
+`--connection-file` may be omitted when `OCTOBER_BUS_CONNECTION_FILE` names the
+file. A managed launcher exports that variable into the execution's environment
+for harnesses whose configuration is shared between executions (Codex reads one
+`hooks.json`/`config.toml`; Claude can take per-launch settings). The variable
+carries a path, never a credential. Without either, `hook` exits silently and
+`mcp stdio`/`mcp check` refuse; no empty tool list is served.
+
+## Connection file
 
 This mode is intended for managed Unix workers. The controller provisions a real
 directory with mode `0700` and a regular file with mode `0600`. It writes a new
@@ -21,52 +33,128 @@ the connection. The file has this shape (placeholders are not usable credentials
   "scopeId": "workspace-id",
   "agentId": "canvas-node-id",
   "executionId": "execution-id",
-  "agentToken": "<execution credential minted by the authority>",
+  "agentToken": "<execution MCP credential minted by the authority>",
+  "hookToken": "<execution lifecycle credential minted by the controller>",
   "expiresAt": "<RFC3339 expiry chosen by the controller>"
 }
 ```
 
-The endpoint must use HTTPS or literal loopback HTTP. Redirects are refused. A
-stable SSH reverse-forward port can provide the loopback route; an authenticated
-hosted service can provide HTTPS. Provisioning either route is the controller's
-job. HTTP Host validation at the destination still applies: a TCP forward does
-not rewrite Host. Optional `httpHost` carries the authority's actual loopback
-address when its port differs from the tunnel port. It may only override the port
-on the endpoint's literal loopback IP, and only for HTTP. HTTPS routing overrides
-and arbitrary Host names are refused. Omit it when no rewrite is needed.
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `version` | yes | Always `1`. Unknown fields refuse the file. |
+| `endpoint` | yes | The authority's `/mcp` URL: HTTPS, or HTTP on a literal loopback IP. No userinfo, query or fragment. Redirects are refused. |
+| `httpHost` | no | Loopback-only HTTP `Host` override: same literal IP as `endpoint`, different port. A TCP/SSH forward does not rewrite `Host`, so this carries the authority's real port across a tunnel port. Never for HTTPS, never another name. |
+| `scopeId`, `agentId`, `executionId` | yes | Pin the execution this file belongs to. For Desktop Core they are the canvas, node and terminal epoch (`launch`). They fence renewal; the authority still authenticates every request. |
+| `agentToken` | yes | The execution's MCP credential: 32 random bytes, unpadded base64url (43 characters). Sent as `Authorization: Bearer`. |
+| `hookToken` | no | The execution's lifecycle credential in the same format, used only by `october-bus hook` as `X-October-Bus-Token`. When absent, hooks report nothing. Requires this helper version or newer; older helpers refuse a file containing it. |
+| `expiresAt` | yes | Controller-chosen expiry. An expired file refuses every request until renewed. |
+
+Both credentials leave the controller only as per-execution grants. Never write a
+scope token, the controller's administrator credential or its process-lifetime
+hook secret into this file or the agent's environment. Unix private files are not
+a boundary against the same OS user. Windows file ACL qualification is not
+implemented for this mode; existing local discovery and managed-environment modes
+are unchanged.
+
+## Renewal, retirement and one record per run
 
 The bridge rereads the file before every HTTP request, including cancellation.
-Only the credential, expiry, and loopback HTTP authority port may change while that bridge lives. Changes to
-the endpoint, scope, agent, or execution require a new bridge. Missing, expired,
-malformed, shared, or symlinked files refuse requests without falling back to an
-old token. Existing in-flight calls remain governed by the server's revocation
-and receipt rules; a file update does not replay a mutation. Transient failures
-are surfaced to the harness and are not silently retried by this bridge. After a
-transport failure, the next tool call establishes a fresh upstream session using
-the current file; the failed call itself is never replayed.
+Only `agentToken`, `hookToken`, `expiresAt` and the loopback `httpHost` port may
+change while a bridge lives. Changing `endpoint`, `scopeId`, `agentId` or
+`executionId` retires the bridge: it refuses until the controller starts a new
+bridge for the new execution. Removing the file withdraws the connection the
+same way. Missing, expired, malformed, shared or symlinked files refuse requests
+without falling back to an old token.
 
-Use this mode without `OCTOBER_BUS_ADDRESS`, `OCTOBER_BUS_AGENT_TOKEN`, or local
-registration flags. Do not put scope/admin credentials in the file or the agent's
-environment. Unix private files are not a boundary against the same OS user.
-Windows file ACL qualification is not implemented for this mode; existing local
-discovery and managed-environment modes are unchanged.
+The controller keeps exactly one connection record per run. It must verify the
+physical execution before renewing access, revoke its grant when that execution
+ends, and never put a replacement execution's credentials under the old labels.
+Public Bus execution registration semantics are unchanged: a newly registered
+execution requires a new bridge. This does not add a same-execution token-rotation
+API to the standalone daemon.
 
-The scope/agent/execution fields fence local renewal; they do not confer identity.
-The receiving authority must authenticate the token and scope every tool call.
-The controller must verify the physical execution before renewing access, revoke
-its grant when that execution ends, and never put a replacement execution's token
-under the old execution labels. Public Bus execution registration semantics are
-unchanged: a newly registered execution requires a new bridge. This does not add
-a same-execution token-rotation API to the standalone daemon.
+## Transport recovery without replay
+
+A transport refusal makes the MCP SDK close its upstream session permanently.
+The bridge establishes a fresh upstream session for the **next** tool call and
+never resends the failed call: losing a response does not prove the mutation
+failed to commit. The decision is made from what the HTTP layer observed:
+
+- A tool-level error answered on a live session (HTTP 2xx) passes through; the
+  session stays.
+- Cancelling a call, for example a long human wait, sends the protocol
+  cancellation and keeps the session for concurrent and later calls.
+- Any HTTP-level failure drops the session. That includes a JSON-RPC error body
+  delivered on HTTP 400, which the SDK treats as a connection failure; keeping
+  that session would strand the worker.
+
+## Diagnostics
+
+Stdout stays reserved for MCP (`mcp stdio`), the hook's context output (`hook`)
+or the requested report (`mcp check`). Failures print one stderr line per class
+transition, then one line on recovery. The classes are:
+
+| Class | Meaning |
+| --- | --- |
+| `invalid-configuration` | Missing path at startup, shared or symlinked file, malformed fields, unsupported endpoint or hook event. |
+| `expired-credential` | `expiresAt` has passed; the controller must renew. |
+| `retired-execution` | The file was withdrawn or its labels changed, or the authority ended the execution while a request was pending. |
+| `unreachable` | The endpoint did not answer (dial, TLS, timeout). |
+| `refused-credential` | HTTP 401/403, or an `UNAUTHENTICATED`/`PERMISSION_DENIED` envelope. |
+| `authority-unavailable` | The route answered but the authority is not ready (5xx, 429, `CORE_NOT_READY`). |
+| `session-lost` | The upstream MCP session ended (HTTP 404); the next call reconnects. |
+| `protocol` | Any other HTTP failure, including a redirect. |
+
+Messages are fixed sentences. Credentials, request bodies and authority responses
+are never printed.
+
+`mcp check` reads the file and sends one JSON-RPC `ping` with the execution
+credential. A ping is not an MCP `initialize`, so it cannot count as the harness
+connecting or mark an agent ready, and it never reserves or drains inbox messages.
+`ok` means the route answered and the credential was accepted; agent readiness
+remains the controller's own process evidence. `--json` prints the class,
+endpoint, labels, expiry and whether a hook credential is present, never tokens.
+
+## Lifecycle hook
+
+`october-bus hook <event> [<flavor>]` is a Node-free port of Desktop's
+`bus-hook.mjs` for the `claude` (default) and `codex` flavors. It reads the
+harness event JSON on stdin and reports to the controller's `/hook/*` routes on
+the endpoint's origin, with `X-October-Bus-Token: <hookToken>`,
+`X-October-MCP-Capability: <agentToken>`, `X-October-Caller-Pid` and the
+`httpHost` override. Bodies carry `canvas`=`scopeId`, `node`=`agentId` and
+`launch`=`executionId`. The mapping is Desktop-specific by design; it does not
+redefine the public Bus protocol, whose `/v1` and `/mcp` surfaces are unchanged.
+
+| Event | Flavors | Routes | Stdout |
+| --- | --- | --- | --- |
+| `session-start`, `session-end` | claude, codex | `POST /hook/session` (`live`/`offline`, session id, transcript, agent, cwd). Claude without a flavor also pulls `GET /hook/pre-prompt?event=session-start`. | Claude: `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":…}}` when context was staged. |
+| `pre-prompt` | claude, codex | `POST /hook/notify` (turn boundary, `requestId`, `providerTurnId`), then `GET /hook/pre-prompt`; after stdout accepted the bytes, `POST /hook/inbox-ack` and `POST /hook/context-ack`. | Claude: raw text. Codex: `UserPromptSubmit` envelope. |
+| `stop`, `stop-failure` | claude, codex | `POST /hook/stop` with the last assistant excerpt, `outcome: failed` for failures, `providerTurnId`. Subagent and sidechain stops are ignored. | none |
+| `notify`, `permission-request`, `post-tool-use`, `post-tool-use-failure`, `ask-user-question`, `ask-user-question-resolved` | claude (codex uses `notify` for PermissionRequest) | `POST /hook/notify` with the same `notificationType`, `needsInput`, `toolName`, `toolUseId` and messages as the Node hook. | none |
+
+Other flavors and events are refused on stderr without contacting any authority.
+A hook never fails the harness: it exits 0, finishes within four seconds, and
+acknowledges a pulled receipt only after stdout accepted it. That proves native
+handoff, not model comprehension. Hook traffic runs on the endpoint's origin
+with `/mcp` replaced by `/hook/...`; the hosted Bus gateway does not serve
+these routes.
+
+## Authority behavior
 
 Desktop Core accepts a standard execution Bearer on `/mcp` and derives the canvas
 and node from its private registry. Conflicting legacy routing headers refuse.
-Core administrator/forwarding credentials cannot impersonate an execution. This
-uses the existing Desktop ledger and tools; the standalone Bus `/v1` service is
-not installed as a second authority. Local manual-shell admission and physical
-readiness checks still apply.
+Core administrator/forwarding credentials cannot impersonate an execution. Core
+answers refusals with HTTP 400 and a JSON envelope; the helper classifies on the
+envelope's error code. This uses the existing Desktop ledger and tools; the
+standalone Bus `/v1` service is not installed as a second authority. Local
+manual-shell admission and physical readiness checks still apply.
+
+The standalone Bus daemon and the [hosted gateway](../deploy/hosted/README.md)
+accept the same bridge for their own executions; for those, the controller is
+whichever operator process registered the execution and minted `agentToken`.
 
 This connection support alone is not a complete remote-host adapter. SSH reach
-supervision, host process evidence, hooks, safe input delivery, reconnect ownership,
-installer qualification, and the hosted cloud controller remain integration work.
-No package is published by these changes.
+supervision, host process evidence, safe input delivery, reconnect ownership,
+installer qualification and the hosted cloud controller remain integration work
+described in [desktop-remote-integration.md](desktop-remote-integration.md).

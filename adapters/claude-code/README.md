@@ -15,6 +15,8 @@ Configuration location: `.mcp.json`. The [template](mcp.json.example) contains p
 
 Keep CLI, IDE, desktop, and remote evidence separate when the host provides multiple modes.
 
+A host controller that already owns the execution (October Desktop over SSH) does not use this self-registering configuration. It points the same binary at a private connection file, `mcp stdio --connection-file <path>`, and installs `october-bus hook <event> ` as the lifecycle hook; see [managed connections](../../docs/managed-connections.md).
+
 Use `check_inbox` with `waitMs=1000` between work steps. The bridge registers and heartbeats outside the model loop, and attempts retirement when the host closes MCP. A hard kill relies on lease expiry. Each simultaneously connected window/project needs a distinct `--agent` ID; identical IDs deliberately replace the previous execution. Remove this server entry to disconnect, and verify retirement in the Bus before reassigning work.
 
 Before promotion, run the full [compatibility runbook](../../compatibility/RUNBOOK.md), both directions with an independent harness, denied-tool cases, reconnection/replacement, and exact-candidate evidence with model, launch mode and public sanitized artifacts. [Upstream configuration documentation](https://code.claude.com/docs/en/mcp).
