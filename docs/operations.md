@@ -4,6 +4,11 @@ October Bus runs as one local daemon. The reference profile binds to `127.0.0.1`
 
 For remote and shared deployments, see the [cross-machine scope architecture](architecture/cross-machine-scopes.md). A shared Bus service owns logical coordination state while each host retains authority over the executions it runs.
 
+For an experimental authenticated HTTPS endpoint for connector evaluation, use the
+[hosted MCP deployment guide](../deploy/hosted/README.md). It includes a restricted
+gateway, operator-issued connector API keys, remote laptop bridges, Linux services,
+and reverse-proxy configuration. It does not certify Muse or automatic session wake-up.
+
 ## Start and stop
 
 ```bash

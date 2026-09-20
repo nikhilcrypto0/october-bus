@@ -42,6 +42,14 @@ Other launch targets remain in [tracking issue #62](https://github.com/october-d
 
 ## Existing managed launchers
 
+For an operator-provisioned remote Bus, the stdio bridge also accepts
+`--remote <https-base-url> --scope-token-file <private-file> --agent <id>` and
+optional `--connect-to <peer>`. This mode owns the remote execution lifecycle;
+it cannot be combined with local scope/directory flags or an inherited agent
+credential. See the [hosted deployment guide](../deploy/hosted/README.md#4-connect-agents-from-the-laptop)
+for token handling and setup. This transport path does not certify a named harness
+or wake an idle model.
+
 `october-bus agent run` remains supported. Its child receives `OCTOBER_BUS_ADDRESS` and an execution-bound `OCTOBER_BUS_AGENT_TOKEN`; scope credentials stay in the launcher. Such a child uses argument-free `october-bus mcp stdio` from [mcp-stdio.json.example](mcp-stdio.json.example). A host may need explicit environment forwarding for these values.
 
 For a local scope, use `agent run --scope <id> --id <agent> --name <name> -- <host-command>`. This reads protected local discovery and the saved scope credential without a token export. It rejects explicit remote addresses or inherited scope/agent authority; the older `--scope-token-env` route remains available separately for remote/operator-managed launches.

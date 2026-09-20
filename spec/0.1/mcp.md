@@ -10,6 +10,15 @@ The reference CLI forwards this MCP surface over stdio. With `october-bus mcp st
 
 The stdio bridge repairs top-level stringified JSON only where the advertised schema explicitly requires an array or object and parsing yields that type. Invalid JSON, scalar values, string-permitting unions and ambiguous schemas remain unchanged. The daemon's direct HTTP/MCP APIs remain strict. This compatibility shim grants no additional authority and does not repair arbitrary model arguments.
 
+The reference CLI's optional remote mode, `mcp stdio --remote <https-base-url>
+--scope-token-file <private-file> --agent <id>`, reads an owner-only scope credential
+file and owns registration, heartbeat, and retirement on the remote Bus. It rejects
+plain HTTP, credential-bearing URLs, redirects, and mixed local/remote registration
+flags. The scope token is not exposed as a model tool. This is a deployment/adapter
+extension; the protocol operations and execution-authority rules stay the same.
+The [hosted gateway](../../deploy/hosted/README.md) can additionally map a connector
+API key to a managed execution without giving that client scope authority.
+
 ## Required tools
 
 | Tool | Protocol operation |

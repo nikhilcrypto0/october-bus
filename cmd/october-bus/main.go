@@ -46,8 +46,12 @@ Usage:
   october-bus task list [--ready] [--json] [--limit <1-500>] [--after <cursor>] [--address <addr>]
   october-bus mcp stdio [--scope <scope-id> --agent <id> --name <display>]
   october-bus mcp stdio --connection-file </absolute/private/connection.json>
+  october-bus mcp stdio --remote <https-base-url> --scope-token-file <file> --agent <id> [--connect-to <peer>]
   october-bus mcp check [--connection-file <path>] [--json]
   october-bus hook [--connection-file <path>] <event> [<flavor>]
+  october-bus gateway init --public-url <https-origin> --scope <id> --config <new-file> --key-file <new-file>
+  october-bus gateway key --output <new-private-file>
+  october-bus gateway start --config <file> [--listen 127.0.0.1:8787]
   october-bus demo
   october-bus version [--json]
 `
@@ -990,6 +994,8 @@ func run() error {
 	switch args[0] {
 	case "start":
 		return start(args[1:])
+	case "gateway":
+		return gatewayCommand(args[1:])
 	case "stop":
 		return stop()
 	case "status":

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +24,16 @@ import (
 func TestMCPStdioHelper(t *testing.T) {
 	if os.Getenv("OCTOBER_BUS_MCP_STDIO_TEST_HELPER") != "1" {
 		return
+	}
+	if caPath := os.Getenv("OCTOBER_BUS_MCP_TEST_CA"); caPath != "" {
+		data, err := os.ReadFile(caPath)
+		pool := x509.NewCertPool()
+		if err != nil || !pool.AppendCertsFromPEM(data) {
+			os.Exit(2)
+		}
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+		http.DefaultTransport = transport
 	}
 	var args []string
 	if raw := os.Getenv("OCTOBER_BUS_MCP_STDIO_TEST_ARGS"); raw != "" {
