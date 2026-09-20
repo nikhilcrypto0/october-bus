@@ -26,6 +26,11 @@ Use distinct agent IDs per execution and scope-level admission controlled by the
 
 This supports colocated collaboration only. Connecting a remote host to a laptop or another tenant needs separately reviewed transport/server authentication, authorization, encryption, revocation and partition behavior. No public bind address, reverse proxy, credential-sharing workaround or new hosted service is enabled by this implementation.
 
+Host controllers can now supply a private, renewable execution connection to the
+[shared native MCP bridge](managed-connections.md). This is transport support for
+an already authorized endpoint, not automatic remote enrollment or a second daemon.
+The host/controller still owns physical execution evidence and the network route.
+
 ## Targets that cannot yet be implemented honestly
 
 | Target | Missing boundary / next evidence |

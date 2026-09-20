@@ -24,12 +24,30 @@ const (
 type agentTokenTransport struct {
 	token string
 	base  http.RoundTripper
+	// Managed remote executions renew a private file without restarting the CLI.
+	connectionSource func() (managedMCPConnection, error)
+	endpoint         string
 }
 
 func (transport agentTokenTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if transport.endpoint != "" && request.URL.String() != transport.endpoint {
+		return nil, errors.New("MCP request left its configured endpoint")
+	}
+	token := transport.token
+	httpHost := ""
+	if transport.connectionSource != nil {
+		connection, err := transport.connectionSource()
+		if err != nil {
+			return nil, err
+		}
+		token, httpHost = connection.AgentToken, connection.HTTPHost
+	}
 	clone := request.Clone(request.Context())
 	clone.Header = request.Header.Clone()
-	clone.Header.Set("Authorization", "Bearer "+transport.token)
+	clone.Header.Set("Authorization", "Bearer "+token)
+	if httpHost != "" {
+		clone.Host = httpHost
+	}
 	// go-sdk v1.7.0's cancellation path bypasses the session metadata helper.
 	// Its new-protocol HTTP notification therefore lacks required _meta fields
 	// and receives 400, poisoning the shared connection after one cancelled tool.
@@ -80,6 +98,7 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 	name := flags.String("name", "", "agent display name (defaults to ID)")
 	dataDir := flags.String("data-dir", "", "local daemon data directory")
 	runtimeDir := flags.String("runtime-dir", "", "local daemon discovery directory")
+	connectionFile := flags.String("connection-file", "", "host-managed private execution connection file (Unix)")
 	var peers stringList
 	flags.Var(&peers, "connect-to", "existing peer ID to link, repeatable")
 	if err := flags.Parse(args); err != nil {
@@ -91,7 +110,19 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 	address := strings.TrimRight(strings.TrimSpace(os.Getenv("OCTOBER_BUS_ADDRESS")), "/")
 	token := strings.TrimSpace(os.Getenv("OCTOBER_BUS_AGENT_TOKEN"))
 	selfRegister := *scope != "" || *id != "" || *name != "" || len(peers) != 0 || *dataDir != "" || *runtimeDir != ""
-	if selfRegister {
+	var endpoint string
+	var connectionSource func() (managedMCPConnection, error)
+	if *connectionFile != "" {
+		if selfRegister || address != "" || token != "" {
+			return errors.New("use --connection-file without local registration flags or inherited agent credentials/address")
+		}
+		connection, err := readManagedMCPConnection(*connectionFile)
+		if err != nil {
+			return err
+		}
+		endpoint = connection.Endpoint
+		connectionSource = managedMCPConnectionSource(*connectionFile, connection)
+	} else if selfRegister {
 		if token != "" {
 			return errors.New("use either managed agent credentials or --scope/--agent, not both")
 		}
@@ -147,23 +178,40 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 		ctx = bridgeCtx
 		address, token = session.Address, session.Registration.AgentToken
 	} else if address == "" || token == "" {
-		return errors.New("mcp stdio requires managed agent credentials or --scope <scope-id> --agent <id>")
+		return errors.New("mcp stdio requires managed agent credentials, --connection-file, or --scope <scope-id> --agent <id>")
+	}
+	if endpoint == "" {
+		endpoint = address + "/mcp"
 	}
 
 	connectContext, cancelConnect := context.WithTimeout(ctx, 10*time.Second)
-	httpClient := &http.Client{Transport: agentTokenTransport{token: token, base: http.DefaultTransport}}
-	client := mcp.NewClient(&mcp.Implementation{Name: "october-bus-stdio-bridge", Version: bus.Version}, nil)
-	upstream, err := client.Connect(connectContext, &mcp.StreamableClientTransport{
-		Endpoint:             address + "/mcp",
-		HTTPClient:           httpClient,
-		MaxRetries:           -1,
-		DisableStandaloneSSE: true,
-	}, nil)
+	httpClient := &http.Client{
+		Transport:     agentTokenTransport{token: token, base: http.DefaultTransport, connectionSource: connectionSource, endpoint: endpoint},
+		CheckRedirect: refuseMCPRedirect,
+	}
+	connect := func(ctx context.Context) (*mcp.ClientSession, error) {
+		connectionCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		client := mcp.NewClient(&mcp.Implementation{Name: "october-bus-stdio-bridge", Version: bus.Version}, nil)
+		return client.Connect(connectionCtx, &mcp.StreamableClientTransport{
+			Endpoint:             endpoint,
+			HTTPClient:           httpClient,
+			MaxRetries:           -1,
+			DisableStandaloneSSE: true,
+		}, nil)
+	}
+	upstream, err := connect(connectContext)
 	if err != nil {
 		cancelConnect()
-		return fmt.Errorf("could not connect to October Bus at %s: %w", address, err)
+		return fmt.Errorf("could not connect to October Bus: %w", err)
 	}
 	defer upstream.Close()
+	callTool := upstream.CallTool
+	if connectionSource != nil {
+		managed := &managedMCPUpstream{session: upstream, connect: connect}
+		defer managed.close()
+		callTool = managed.call
+	}
 
 	server := newMCPBridgeServer(mcpBridgeInstructions)
 	for cursor := ""; ; {
@@ -178,7 +226,7 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 			coerce := structuredArgumentTypes(tool.InputSchema)
 			server.AddTool(&tool, func(callContext context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				params := request.Params
-				return upstream.CallTool(callContext, &mcp.CallToolParams{
+				return callTool(callContext, &mcp.CallToolParams{
 					Meta:           params.Meta,
 					Name:           toolName,
 					Arguments:      coerceStructuredArguments(params.Arguments, coerce),

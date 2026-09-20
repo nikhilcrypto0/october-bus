@@ -45,6 +45,7 @@ Usage:
   october-bus task add --title <title> [--description <text>] [--depends-on <task-id>] [--json] [--address <addr>]
   october-bus task list [--ready] [--json] [--limit <1-500>] [--after <cursor>] [--address <addr>]
   october-bus mcp stdio [--scope <scope-id> --agent <id> --name <display>]
+  october-bus mcp stdio --connection-file </absolute/private/connection.json>
   october-bus demo
   october-bus version
 `
