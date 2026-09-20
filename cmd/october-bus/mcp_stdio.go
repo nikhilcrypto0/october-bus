@@ -30,8 +30,17 @@ type agentTokenTransport struct {
 }
 
 func (transport agentTokenTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	outcome, _ := request.Context().Value(callOutcomeKey{}).(*callOutcome)
+	response, err := transport.roundTrip(request)
+	if outcome != nil {
+		outcome.observe(response, err)
+	}
+	return response, err
+}
+
+func (transport agentTokenTransport) roundTrip(request *http.Request) (*http.Response, error) {
 	if transport.endpoint != "" && request.URL.String() != transport.endpoint {
-		return nil, errors.New("MCP request left its configured endpoint")
+		return nil, &connectionError{Class: failureProtocol, Reason: "MCP request left its configured endpoint"}
 	}
 	token := transport.token
 	httpHost := ""
@@ -98,7 +107,7 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 	name := flags.String("name", "", "agent display name (defaults to ID)")
 	dataDir := flags.String("data-dir", "", "local daemon data directory")
 	runtimeDir := flags.String("runtime-dir", "", "local daemon discovery directory")
-	connectionFile := flags.String("connection-file", "", "host-managed private execution connection file (Unix)")
+	connectionFile := flags.String("connection-file", "", "host-managed private execution connection file (Unix); defaults to $"+managedConnectionFileEnv)
 	var peers stringList
 	flags.Var(&peers, "connect-to", "existing peer ID to link, repeatable")
 	if err := flags.Parse(args); err != nil {
@@ -112,16 +121,16 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 	selfRegister := *scope != "" || *id != "" || *name != "" || len(peers) != 0 || *dataDir != "" || *runtimeDir != ""
 	var endpoint string
 	var connectionSource func() (managedMCPConnection, error)
-	if *connectionFile != "" {
+	if connectionPath := resolveManagedConnectionPath(*connectionFile); connectionPath != "" {
 		if selfRegister || address != "" || token != "" {
-			return errors.New("use --connection-file without local registration flags or inherited agent credentials/address")
+			return errors.New("use --connection-file (or " + managedConnectionFileEnv + ") without local registration flags or inherited agent credentials/address")
 		}
-		connection, err := readManagedMCPConnection(*connectionFile)
+		connection, err := readManagedMCPConnection(connectionPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("managed connection: %w", err)
 		}
 		endpoint = connection.Endpoint
-		connectionSource = managedMCPConnectionSource(*connectionFile, connection)
+		connectionSource = managedMCPConnectionSource(connectionPath, connection)
 	} else if selfRegister {
 		if token != "" {
 			return errors.New("use either managed agent credentials or --scope/--agent, not both")
@@ -178,7 +187,7 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 		ctx = bridgeCtx
 		address, token = session.Address, session.Registration.AgentToken
 	} else if address == "" || token == "" {
-		return errors.New("mcp stdio requires managed agent credentials, --connection-file, or --scope <scope-id> --agent <id>")
+		return errors.New("mcp stdio requires managed agent credentials, --connection-file (or " + managedConnectionFileEnv + "), or --scope <scope-id> --agent <id>")
 	}
 	if endpoint == "" {
 		endpoint = address + "/mcp"
@@ -200,15 +209,22 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 			DisableStandaloneSSE: true,
 		}, nil)
 	}
-	upstream, err := connect(connectContext)
+	initialCtx, initialOutcome := withCallOutcome(connectContext)
+	upstream, err := connect(initialCtx)
 	if err != nil {
 		cancelConnect()
+		if class, reason := initialOutcome.failure(); class != "" {
+			return fmt.Errorf("could not connect to October Bus: %s: %s: %w", class, reason, err)
+		}
 		return fmt.Errorf("could not connect to October Bus: %w", err)
 	}
 	defer upstream.Close()
 	callTool := upstream.CallTool
 	if connectionSource != nil {
-		managed := &managedMCPUpstream{session: upstream, connect: connect}
+		managed := &managedMCPUpstream{
+			session: upstream, connect: connect,
+			diagnostics: &bridgeDiagnostics{out: os.Stderr, prefix: "october-bus mcp stdio"},
+		}
 		defer managed.close()
 		callTool = managed.call
 	}

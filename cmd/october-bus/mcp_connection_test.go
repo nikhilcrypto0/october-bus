@@ -154,7 +154,7 @@ func TestMCPStdioManagedConnectionForwardsWithoutLocalDaemon(t *testing.T) {
 	defer cleanup()
 	connection.Endpoint, connection.AgentToken = address+"/mcp", senderToken
 	saveTestConnection(t, path, connection)
-	stderr := new(bytes.Buffer)
+	stderr := new(syncBuffer)
 	command := mcpBridgeCommand("", "", stderr)
 	args, err := json.Marshal([]string{"--connection-file", path})
 	requireNoError(t, err)
@@ -228,7 +228,7 @@ func TestMCPStdioManagedConnectionDoesNotReplayLostMutation(t *testing.T) {
 	defer proxy.Close()
 	connection.Endpoint, connection.AgentToken = proxy.URL+"/mcp", senderToken
 	saveTestConnection(t, path, connection)
-	stderr := new(bytes.Buffer)
+	stderr := new(syncBuffer)
 	command := mcpBridgeCommand("", "", stderr)
 	args, _ := json.Marshal([]string{"--connection-file", path})
 	command.Env = setEnvironment(command.Env, "OCTOBER_BUS_MCP_STDIO_TEST_ARGS", string(args))
