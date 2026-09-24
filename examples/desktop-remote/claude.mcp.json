@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "october-bus": {
+      "command": "/home/worker/.october/servers/<install>/current/bin/october-bus",
+      "args": ["mcp", "stdio", "--connection-file", "/home/worker/.october/executions/<execution>/connection.json"]
+    }
+  }
+}

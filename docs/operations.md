@@ -36,6 +36,8 @@ The bridge reads local discovery and the saved scope token, registers an executi
 
 The argument-free form remains available inside `agent run`, which supplies `OCTOBER_BUS_ADDRESS` and `OCTOBER_BUS_AGENT_TOKEN`. Missing credentials/identity or mixed modes now fail. Independently launched editors should use configuration-only mode, not rely on a terminal's environment.
 
+A host controller such as October Desktop can instead hand the bridge a private, renewable execution file: `mcp stdio --connection-file <path>` (or `OCTOBER_BUS_CONNECTION_FILE`). The same binary provides `mcp check` for bounded setup diagnostics and `hook` for Claude/Codex lifecycle reporting without a Node runtime. See [managed connections](managed-connections.md) and the [Desktop remote integration contract](desktop-remote-integration.md).
+
 ### Saved scope credentials
 
 Local CLI create, successful import and token rotation save a raw scope credential under `DataDir/scopes/<sha256(scope-id)>.token`. Case-sensitive IDs remain distinct and filenames avoid Windows reserved names/characters. Files request mode 0600, directories 0700; Unix reads reject shared permissions and symlinks. Windows requires owner-restricted directory ACLs: Unix mode bits do not establish that guarantee. Same-user processes remain trusted.

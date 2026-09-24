@@ -37,6 +37,8 @@ jobs:
           cache-dependency-path: sdk/typescript/package-lock.json
       - run: npm ci --ignore-scripts
         working-directory: sdk/typescript
+      - if: matrix.os == 'ubuntu-latest'
+        run: node --test scripts/managed-runtime-manifest.test.mjs
       - run: npm run build:native
         working-directory: sdk/typescript
       - run: npm run pack:distribution

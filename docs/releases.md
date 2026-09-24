@@ -24,6 +24,18 @@ Before creating a tag:
 
 Platform code signing and notarization require the relevant platform identities. Unsigned artifacts must remain clearly identified until those identities and verification steps are configured.
 
+The release workflow smoke-tests the Linux amd64, Linux arm64, macOS arm64 and Windows amd64 archives on real runners of that architecture before publishing. A host product that installs the pinned Linux helper (October Desktop's Agents Anywhere release) verifies the archive against `checksums.txt` and the build-provenance attestation; the exact commands are in [desktop-remote-integration.md](desktop-remote-integration.md).
+
+Native builds require a clean checkout and embed VCS metadata. After smoke tests,
+the workflow generates `remote-bus-runtime.json` from the exact Linux archives:
+archive and binary SHA-256 per architecture, tag-derived runtime version,
+protocol version, source commit, `sourceModifiedAtBuild: false` and
+`qualification: "release"`. Generation rejects binaries with missing metadata,
+a different commit, a dirty source tree, the wrong architecture or CGO enabled.
+The manifest and a standalone `LICENSE` are included in `checksums.txt` and
+published beside the archives. Consumers can copy the manifest into their pin;
+publication still uses the existing signed-tag and independent-review gates.
+
 ## npm CLI and TypeScript distribution
 
 The npm package uses pre-1.0 versions. From `0.1.0-next.14`, it contains both the TypeScript SDK and a Node launcher for the native Go daemon. Six exact-version optional dependencies, named `@october-dev/october-bus-{darwin,linux,win32}-{x64,arm64}`, carry the prebuilt executables. The launcher does not download binaries, execute a shell, or fall back to PATH. Linux builds use `CGO_ENABLED=0`, so a separate musl package is unnecessary.

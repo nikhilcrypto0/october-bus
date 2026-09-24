@@ -45,12 +45,15 @@ Usage:
   october-bus task add --title <title> [--description <text>] [--depends-on <task-id>] [--json] [--address <addr>]
   october-bus task list [--ready] [--json] [--limit <1-500>] [--after <cursor>] [--address <addr>]
   october-bus mcp stdio [--scope <scope-id> --agent <id> --name <display>]
+  october-bus mcp stdio --connection-file </absolute/private/connection.json>
   october-bus mcp stdio --remote <https-base-url> --scope-token-file <file> --agent <id> [--connect-to <peer>]
+  october-bus mcp check [--connection-file <path>] [--json]
+  october-bus hook [--connection-file <path>] <event> [<flavor>]
   october-bus gateway init --public-url <https-origin> --scope <id> --config <new-file> --key-file <new-file>
   october-bus gateway key --output <new-private-file>
   october-bus gateway start --config <file> [--listen 127.0.0.1:8787]
   october-bus demo
-  october-bus version
+  october-bus version [--json]
 `
 
 type stringList []string
@@ -1055,13 +1058,47 @@ func run() error {
 			defer cancel()
 			return runMCPStdio(ctx, args[2:]...)
 		}
+		if len(args) >= 2 && args[1] == "check" {
+			return runMCPCheck(args[2:], os.Stdout)
+		}
+	case "hook":
+		// A lifecycle hook must never block or fail a harness session. Problems
+		// are reported on stderr and the process still exits 0.
+		runHook(args[1:], os.Stdin, stdinIsTerminal(), os.Stdout, os.Stderr)
+		return nil
 	case "demo":
 		return bus.RunDemo(context.Background())
-	case "version":
-		fmt.Printf("october-bus %s (protocol %s)\n", bus.Version, bus.ProtocolVersion)
-		return nil
+	case "version", "--version":
+		return printVersion(args[1:], os.Stdout)
 	}
 	return fmt.Errorf("unknown command: %v\n\n%s", args, usage)
+}
+
+func printVersion(args []string, out io.Writer) error {
+	flags := flag.NewFlagSet("version", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	jsonOutput := flags.Bool("json", false, "print machine-readable JSON")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("version does not accept positional arguments")
+	}
+	if *jsonOutput {
+		encoded, err := json.MarshalIndent(map[string]string{"runtimeVersion": bus.Version, "protocolVersion": bus.ProtocolVersion}, "", "  ")
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(out, string(encoded))
+		return err
+	}
+	_, err := fmt.Fprintf(out, "october-bus %s (protocol %s)\n", bus.Version, bus.ProtocolVersion)
+	return err
+}
+
+func stdinIsTerminal() bool {
+	info, err := os.Stdin.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 func main() {
