@@ -162,6 +162,43 @@ func readGatewayConfig(path string) (gateway.Config, error) {
 	return config, config.Validate()
 }
 
+// daemonStartupWait bounds how long `gateway start` waits for the local daemon.
+// A service manager orders the gateway after the daemon process, not after the
+// daemon is ready; failing immediately would trip restart limits on boot.
+const daemonStartupWait = 60 * time.Second
+
+// awaitDaemon returns the daemon's run file once the daemon answers its health
+// probe, retrying until the deadline. It never registers anything.
+func awaitDaemon(ctx context.Context, runFile string, wait time.Duration) (bus.RunFile, error) {
+	deadline := time.Now().Add(wait)
+	var lastErr error
+	announced := false
+	for {
+		run, err := bus.ReadRunFile(runFile)
+		if err == nil {
+			probe, cancel := context.WithTimeout(ctx, 3*time.Second)
+			_, err = (bus.Client{Address: run.Address, HTTP: &http.Client{CheckRedirect: rejectBusRedirect}}).Health(probe)
+			cancel()
+			if err == nil {
+				return run, nil
+			}
+		}
+		lastErr = err
+		if time.Now().After(deadline) {
+			return bus.RunFile{}, fmt.Errorf("start the local Bus daemon first: %w", lastErr)
+		}
+		if !announced {
+			fmt.Println("Waiting for the local Bus daemon to become ready")
+			announced = true
+		}
+		select {
+		case <-ctx.Done():
+			return bus.RunFile{}, ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
 func startGateway(args []string) (runErr error) {
 	flags := flag.NewFlagSet("gateway start", flag.ContinueOnError)
 	configPath := flags.String("config", "", "private gateway configuration file")
@@ -185,9 +222,11 @@ func startGateway(args []string) (runErr error) {
 	if err != nil {
 		return err
 	}
-	run, err := bus.ReadRunFile(paths.RunFile)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	run, err := awaitDaemon(ctx, paths.RunFile, daemonStartupWait)
 	if err != nil {
-		return fmt.Errorf("start the local Bus daemon first: %w", err)
+		return err
 	}
 	// Bind first: a second gateway must not replace active executions and then
 	// discover that the first gateway already owns this listener.
@@ -196,8 +235,6 @@ func startGateway(args []string) (runErr error) {
 		return err
 	}
 	defer listener.Close()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	g, err := gateway.New(ctx, run.Address, config, func(scope string) (string, error) {
 		return bus.ReadScopeToken(paths.DataDir, scope)
 	})
@@ -209,6 +246,9 @@ func startGateway(args []string) (runErr error) {
 		defer cancel()
 		runErr = errors.Join(runErr, g.Close(cleanup))
 	}()
+	// ReadTimeout also bounds the post-response drain of a withheld request
+	// body: the gateway flushes rejections before reading a body, but net/http
+	// still discards up to 256 KiB of it on the connection goroutine afterwards.
 	server := &http.Server{Handler: g, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 35 * time.Second, WriteTimeout: 40 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
 	finished := make(chan error, 1)
 	go func() { finished <- server.Serve(listener) }()

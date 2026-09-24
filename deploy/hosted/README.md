@@ -27,7 +27,13 @@ local harness <-- stdio bridge -- outbound HTTPS --> gateway /bus/*
 - A connector API key is stored as a SHA-256 digest in gateway configuration.
   Each key maps to one scope and dedicated connector agent. The gateway owns
   that execution's registration, heartbeat, and retirement; Muse never receives
-  scope/admin credentials. Connector readiness does not assert model readiness.
+  scope/admin credentials. The connector execution reports lifecycle `idle`
+  with `ready: true`, meaning the gateway will accept and hold work; it never
+  asserts that a model is awake. `/mcp` accepts `POST` only: the daemon serves
+  MCP stateless with JSON responses, so there is no SSE listen stream or
+  session to delete. The connector's agent ID (default `muse`) is reserved for
+  the gateway; a laptop bridge registering the same ID replaces the connector
+  execution and takes that connector offline until the gateway restarts.
 - Remote laptop bridges own their own executions. They read scope credentials
   from private files and expose only agent tools over stdio to the harness.
 - Only explicitly allowed agent/scope routes are public under `/bus`. Scope
@@ -37,6 +43,8 @@ local harness <-- stdio bridge -- outbound HTTPS --> gateway /bus/*
   executions; restart replaces its execution without discarding queued messages.
 - An unavailable individual connector returns 503 without disabling other scopes.
   If all connector executions end, the process exits for systemd to restart it.
+  `gateway start` waits up to 60 s for the daemon's readiness probe before
+  binding, so the start order is daemon, then gateway, then laptop bridges.
 
 This is an **experimental, operator-provisioned pilot**, not a self-service
 multitenant cloud or a verified Muse integration. Use one scope per person or
@@ -241,9 +249,17 @@ Suggested access requirements:
 > sessions. Their computer and receiving agents must be online and consuming
 > messages for work to execute. Existing coding-tool accounts, subscriptions, and
 > approvals still apply. Each connector is limited to its provisioned scope and
-> linked peers. The gateway permits 16 concurrent requests per connector and 128
-> overall; Bus request, queue, and storage limits also apply. OAuth, self-service
-> onboarding, and automatic session wake-up are not implemented by this gateway.
+> linked peers. The gateway admits requests from three bounded pools: 32 slots
+> for credential checks and health probes, 32 for validated heartbeat and
+> retirement, and 128 shared by validated bridge requests and connector requests
+> (16 per connector). A request without a valid credential never occupies the
+> heartbeat or shared pools, and occupies a credential-check slot only for one
+> header-only loopback call that the client cannot prolong. These sizes are
+> bounds, not isolation guarantees: heartbeats compete for credential checks
+> with all unauthenticated traffic, and a holder of a valid credential can
+> still exhaust the shared pool. Bus request, queue, and storage limits also
+> apply. OAuth, self-service onboarding, and automatic session wake-up are not
+> implemented by this gateway.
 > Muse compatibility remains to be verified.
 
 The exact authentication mechanisms Muse accepts for a given review still need

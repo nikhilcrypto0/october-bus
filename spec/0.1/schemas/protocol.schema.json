@@ -139,6 +139,13 @@
         "agent": { "$ref": "#/$defs/agent" }
       }
     },
+    "credential": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["scope", "agent", "principal"] }
+      }
+    },
     "agentIdentity": {
       "type": "object",
       "additionalProperties": false,

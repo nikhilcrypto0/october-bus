@@ -3,6 +3,10 @@ Description=October Bus hosted MCP gateway
 Requires=october-bus.service
 After=october-bus.service network.target
 PartOf=october-bus.service
+# `gateway start` waits up to 60 s for the daemon's readiness probe; the
+# daemon unit only orders on process start. Never let a slow boot exhaust the
+# restart budget and leave the connector permanently down.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

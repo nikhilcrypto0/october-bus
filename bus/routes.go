@@ -96,6 +96,7 @@ func (s *Server) newRouter() http.Handler {
 		routeMethod{http.MethodPost, s.retireAgent},
 	)
 	registerRoute(router, "/v1/me", routeMethod{http.MethodGet, s.nodeStatus})
+	registerRoute(router, "/v1/credential", routeMethod{http.MethodGet, s.credential})
 	registerRoute(router, "/v1/peers",
 		routeMethod{http.MethodGet, s.listPeers},
 	)
@@ -442,6 +443,21 @@ func (s *Server) heartbeat(response http.ResponseWriter, request *http.Request) 
 		return err
 	}
 	result, err := s.runtime.Heartbeat(request.Context(), token, input)
+	if err != nil {
+		return err
+	}
+	writeResult(response, http.StatusOK, result)
+	return nil
+}
+
+// credential classifies the bearer without reading a body. The purpose query
+// parameter is empty or "retire"; see Runtime.Credential.
+func (s *Server) credential(response http.ResponseWriter, request *http.Request) error {
+	token, err := bearer(request)
+	if err != nil {
+		return err
+	}
+	result, err := s.runtime.Credential(request.Context(), token, request.URL.Query().Get("purpose"))
 	if err != nil {
 		return err
 	}

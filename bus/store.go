@@ -345,7 +345,10 @@ ON CONFLICT(scope_id,agent_id) DO UPDATE SET
 	}, nil
 }
 
-func (s *Store) AuthenticateAgent(ctx context.Context, supplied string) (Principal, error) {
+// CurrentAgentToken resolves the execution that currently owns a token,
+// regardless of its lease. A replaced token is unknown. Callers decide whether
+// an expired or retired lease is acceptable; only retirement accepts one.
+func (s *Store) CurrentAgentToken(ctx context.Context, supplied string) (Principal, error) {
 	hash := tokenDigest(supplied)
 	var principal Principal
 	err := s.db.QueryRowContext(ctx, `SELECT scope_id,agent_id,execution_id,lease_expires_at FROM agents WHERE token_hash=?`, hash).
@@ -353,6 +356,14 @@ func (s *Store) AuthenticateAgent(ctx context.Context, supplied string) (Princip
 	if errors.Is(err, sql.ErrNoRows) {
 		return Principal{}, Errorf(CodeUnauthenticated, "Invalid agent token")
 	}
+	if err != nil {
+		return Principal{}, err
+	}
+	return principal, nil
+}
+
+func (s *Store) AuthenticateAgent(ctx context.Context, supplied string) (Principal, error) {
+	principal, err := s.CurrentAgentToken(ctx, supplied)
 	if err != nil {
 		return Principal{}, err
 	}

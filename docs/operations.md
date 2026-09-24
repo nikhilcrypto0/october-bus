@@ -252,7 +252,7 @@ This permanently deletes that scope and its dependent data. Back up first; recov
 
 ### Operating bounds
 
-Ordinary HTTP admission is capped at 256 requests; heartbeat/retirement/health/shutdown have 32 separate slots. Inbox waits are capped at 32 per agent and 128 per scope, and return backpressure rather than accumulating indefinitely. Across remote principals, queued/reserved/delivered A2A messages are limited to 5,000 slots and 64 MiB of bodies per scope, preserving half the active backlog slots for local senders. Per-principal unfinished-work quotas still apply. These are ceilings, not a supported hosted-load claim. Retained history still needs an operator retention policy and disk monitoring.
+Ordinary HTTP admission is capped at 256 requests; heartbeat/retirement/health/shutdown have 32 separate slots, and credential classification (`GET /v1/credential`) has 32 more. Inbox waits are capped at 32 per agent and 128 per scope, and return backpressure rather than accumulating indefinitely. Across remote principals, queued/reserved/delivered A2A messages are limited to 5,000 slots and 64 MiB of bodies per scope, preserving half the active backlog slots for local senders. Per-principal unfinished-work quotas still apply. These are ceilings, not a supported hosted-load claim. Retained history still needs an operator retention policy and disk monitoring.
 
 Legacy task listing rejects scopes with more than 10,000 tasks. Traverse history with `october-bus task list --limit 100 [--after <nextCursor>]`, Go `TaskPage`, or TypeScript `taskPage`. Portable exports have a conservative preflight budget and never successfully return an archive their importer rejects. Use the full database snapshot for larger state.
 

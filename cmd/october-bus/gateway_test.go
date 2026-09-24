@@ -2,14 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/october-dev/october-bus/bus"
 )
@@ -71,5 +74,22 @@ func TestGatewayRejectsSharedConfigAndPublicListener(t *testing.T) {
 	for _, listen := range []string{"0.0.0.0:8787", ":8787", "[::]:8787", "example.com:8787"} {
 		err := startGateway([]string{"--config", path, "--listen", listen})
 		require(t, err != nil && strings.Contains(err.Error(), "loopback"), "public listener not refused: %s %v", listen, err)
+	}
+}
+
+func TestAwaitDaemonWaitsThenFailsWithoutDaemon(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "bus.json")
+	started := time.Now()
+	_, err := awaitDaemon(context.Background(), missing, 1500*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "start the local Bus daemon first") {
+		t.Fatalf("expected daemon-not-ready error, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed < time.Second {
+		t.Fatalf("gateway gave up after %s without waiting for the daemon", elapsed)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := awaitDaemon(ctx, missing, time.Minute); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled wait should return context error, got %v", err)
 	}
 }

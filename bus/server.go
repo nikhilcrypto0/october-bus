@@ -48,6 +48,9 @@ type Server struct {
 	shutdownOnce    sync.Once
 	requests        chan struct{}
 	controlRequests chan struct{}
+	// credentialRequests keeps header-only classification probes from
+	// competing with long-lived requests (inbox waits) or local heartbeats.
+	credentialRequests chan struct{}
 }
 
 type mcpTokenKey struct{}
@@ -64,8 +67,9 @@ func NewServer(runtime *Runtime, options ServerOptions) *Server {
 		runtime: runtime, options: options,
 		waitContext: waitContext, cancelWaits: cancelWaits,
 		serveDone: make(chan error, 1), shutdown: make(chan struct{}),
-		requests:        make(chan struct{}, maxConcurrentRequests),
-		controlRequests: make(chan struct{}, 32),
+		requests:           make(chan struct{}, maxConcurrentRequests),
+		controlRequests:    make(chan struct{}, 32),
+		credentialRequests: make(chan struct{}, 32),
 	}
 	server.mcpHandler = mcp.NewStreamableHTTPHandler(func(request *http.Request) *mcp.Server {
 		token, _ := request.Context().Value(mcpTokenKey{}).(string)
@@ -219,6 +223,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	switch request.URL.Path {
 	case "/v1/me/heartbeat", "/v1/me/retire", "/health", "/health/live", "/health/ready", "/v1/admin/shutdown":
 		budget = s.controlRequests
+	case "/v1/credential":
+		budget = s.credentialRequests
 	}
 	select {
 	case budget <- struct{}{}:

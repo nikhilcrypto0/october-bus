@@ -131,9 +131,13 @@ func runMCPStdio(ctx context.Context, args ...string) (runErr error) {
 		// The session owns its context until EOF, cancellation or lease failure.
 		sessionCtx, cancelSession := context.WithCancel(ctx)
 		defer cancelSession()
+		// The harness launched this bridge and owns the process, so peers may
+		// send work: ready means attached and reachable, not that a model turn
+		// is running. Delivery still never implies execution.
 		session, err := bus.StartAgentSession(sessionCtx, bus.AgentSessionOptions{
 			Address: owner.Address, ScopeToken: owner.Token, HTTP: owner.HTTP, HeartbeatInterval: 5 * time.Second,
-			Registration: bus.RegisterAgentInput{ID: *id, DisplayName: *name, ConnectTo: peers, LeaseMS: 30_000},
+			Registration:     bus.RegisterAgentInput{ID: *id, DisplayName: *name, ConnectTo: peers, LeaseMS: 30_000},
+			InitialLifecycle: bus.LifecycleReady, InitialReady: true,
 		})
 		if err != nil {
 			return fmt.Errorf("could not start agent session: %w", err)

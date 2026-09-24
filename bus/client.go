@@ -150,6 +150,16 @@ func (c Client) NodeStatus(ctx context.Context) (NodeStatus, error) {
 	return request[NodeStatus](ctx, c, http.MethodGet, "/v1/me", nil)
 }
 
+// Credential classifies the client's bearer credential without authorizing
+// anything. purpose is empty or "retire".
+func (c Client) Credential(ctx context.Context, purpose string) (Credential, error) {
+	path := "/v1/credential"
+	if purpose != "" {
+		path += "?purpose=" + url.QueryEscape(purpose)
+	}
+	return request[Credential](ctx, c, http.MethodGet, path, nil)
+}
+
 func (c Client) ListPeers(ctx context.Context) ([]Agent, error) {
 	return request[[]Agent](ctx, c, http.MethodGet, "/v1/peers", nil)
 }

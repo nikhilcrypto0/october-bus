@@ -356,6 +356,9 @@ func TestReferenceRuntimeResponsesMatchProtocolSchemas(t *testing.T) {
 	requireValid(t, resolvedSchema(t, path, "deleteScopeInput"), map[string]any{"confirmScopeId": scope.ScopeID})
 	requireValid(t, resolvedSchema(t, path, "deleteScopeResult"), map[string]any{"deleted": true})
 	owner := bus.Client{Address: address, Token: scope.ScopeToken}
+	credential, err := owner.Credential(ctx, "")
+	requireNoError(t, err)
+	requireValid(t, resolvedSchema(t, path, "credential"), jsonValue(t, credential))
 	page, err := owner.TaskPage(ctx, "", 10)
 	requireNoError(t, err)
 	requireValid(t, resolvedSchema(t, path, "taskPage"), jsonValue(t, page))

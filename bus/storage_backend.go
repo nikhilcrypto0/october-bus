@@ -19,6 +19,7 @@ type storageBackend interface {
 	AuthenticateScope(context.Context, string) (string, error)
 	CredentialKind(context.Context, string) (CredentialKind, error)
 	RegisterAgent(context.Context, string, RegisterAgentInput) (RegisterAgentResult, error)
+	CurrentAgentToken(context.Context, string) (Principal, error)
 	AuthenticateAgent(context.Context, string) (Principal, error)
 	Agent(context.Context, string, string) (Agent, error)
 	Heartbeat(context.Context, Principal, HeartbeatInput) (Agent, bool, error)

@@ -153,6 +153,44 @@ func (r *Runtime) Principal(ctx context.Context, agentToken string) (Principal, 
 	return r.store.AuthenticateAgent(ctx, agentToken)
 }
 
+// Credential classifies a bearer credential with bounded indexed lookups and
+// no scope data, so a forwarding gateway can decide admission before it reads
+// a request body. Success authorizes nothing: every route still authenticates
+// and rechecks inside its own transaction.
+//
+// The default purpose mirrors scopeAuthority: a scope token, then an unexpired
+// current agent token, then an enabled scoped credential. purpose=retire is the
+// read-only form of the rule Store.RetireAgent applies: the current token of an
+// execution may retire it even when its lease has expired or already ended,
+// while a replaced token may not.
+func (r *Runtime) Credential(ctx context.Context, token, purpose string) (Credential, error) {
+	switch purpose {
+	case "":
+		if _, err := r.store.AuthenticateScope(ctx, token); err == nil {
+			return Credential{Kind: CredentialScope}, nil
+		} else if AsBusError(err).Code != CodeUnauthenticated {
+			return Credential{}, err
+		}
+		kind, err := r.store.CredentialKind(ctx, token)
+		if err != nil {
+			return Credential{}, err
+		}
+		switch kind {
+		case CredentialKindAgent:
+			return Credential{Kind: CredentialAgent}, nil
+		case CredentialKindScopedPrincipal:
+			return Credential{Kind: CredentialPrincipal}, nil
+		}
+		return Credential{}, Errorf(CodeUnauthenticated, "Invalid credential")
+	case "retire":
+		if _, err := r.store.CurrentAgentToken(ctx, token); err != nil {
+			return Credential{}, err
+		}
+		return Credential{Kind: CredentialAgent}, nil
+	}
+	return Credential{}, Errorf(CodeInvalidArgument, "purpose must be omitted or retire")
+}
+
 func (r *Runtime) Heartbeat(ctx context.Context, agentToken string, input HeartbeatInput) (Agent, error) {
 	principal, err := r.Principal(ctx, agentToken)
 	if err != nil {

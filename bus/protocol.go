@@ -476,3 +476,15 @@ type NodeStatus struct {
 	Identity NodeIdentity `json:"identity"`
 	Agent    Agent        `json:"agent"`
 }
+
+// Credential kinds reported by GET /v1/credential.
+const (
+	CredentialScope     = "scope"
+	CredentialAgent     = "agent"
+	CredentialPrincipal = "principal"
+)
+
+// Credential classifies a bearer credential without authorizing anything.
+type Credential struct {
+	Kind string `json:"kind"`
+}
