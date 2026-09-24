@@ -38,7 +38,7 @@ publication still uses the existing signed-tag and independent-review gates.
 
 ## npm CLI and TypeScript distribution
 
-The npm package uses pre-1.0 versions. From `0.1.0-next.14`, it contains both the TypeScript SDK and a Node launcher for the native Go daemon. Six exact-version optional dependencies, named `@october-dev/october-bus-{darwin,linux,win32}-{x64,arm64}`, carry the prebuilt executables. The launcher does not download binaries, execute a shell, or fall back to PATH. Linux builds use `CGO_ENABLED=0`, so a separate musl package is unnecessary.
+The npm package uses pre-1.0 versions. From `0.1.0-next.15`, it contains both the TypeScript SDK and a Node launcher for the native Go daemon. Six exact-version optional dependencies, named `@october-dev/october-bus-{darwin,linux,win32}-{x64,arm64}`, carry the prebuilt executables. The launcher does not download binaries, execute a shell, or fall back to PATH. Linux builds use `CGO_ENABLED=0`, so a separate musl package is unnecessary.
 
 The prerelease workflow accepts reviewed `main` commits, runs Go and SDK validation, cross-builds all six native packages, and packs the SDK/launcher. It then installs the actual tarballs through a temporary registry on Linux, macOS, and Windows. These tests verify automatic optional-package selection, `npm exec`, a real daemon demo, SDK imports, and failure exit codes with install scripts disabled.
 

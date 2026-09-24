@@ -1,15 +1,15 @@
 # Client SDKs
 
-October Bus ships a Go client in this module and a TypeScript client on npm. From `0.1.0-next.14`, the npm package also installs the matching native Go daemon and exposes the `october-bus` command. SDK imports do not load or start the daemon.
+October Bus ships a Go client in this module and a TypeScript client on npm. From `0.1.0-next.15`, the npm package also installs the matching native Go daemon and exposes the `october-bus` command. SDK imports do not load or start the daemon.
 
 ## Runtime and SDK compatibility
 
 | Client / distribution | Runtime requirement | Boundary |
 | --- | --- | --- |
 | Go module pinned to `v0.1.0-rc.4` | rc.4's documented protocol subset | Does not include the new managed-retirement helper. |
-| npm versions before `next.14` | Check that published version's documentation | SDK-only packages; installing one does not install a daemon. |
+| npm versions before `next.15` | Check that published version's documentation | SDK-only packages; installing one does not install a daemon. |
 | Updated Go/TypeScript managed sessions in this branch | Ready protocol `0.1` with `/health.features` containing `session-retirement` | Checked before registration; rc.4 and missing feature declarations are rejected. |
-| Bundled npm CLI, starting with published `next.14` | Its exact-version native optional package | Launcher rejects missing/mismatched native packages; remote SDK connections are still checked separately. |
+| Bundled npm CLI, starting with published `next.15` | Its exact-version native optional package | Launcher rejects missing/mismatched native packages; remote SDK connections are still checked separately. |
 | Direct HTTP/SDK calls | An endpoint implementing each operation used | Low-level clients do not negotiate every optional operation automatically. |
 
 The health feature declaration is additive and independent of version labels. It does not confer authority: registration, heartbeat and retirement still authenticate every request. Missing `features` means no declared features; ignore unknown feature names. A compatible independently implemented daemon can advertise `session-retirement` only if it implements the complete retirement contract. Managed-session startup returns `CONFLICT` for incompatible health; transport or unavailable-health errors retain their normal failure semantics. No scope or agent token is sent to the health endpoint.

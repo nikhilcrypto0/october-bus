@@ -176,7 +176,7 @@ done
 (cd dist && sha256sum *.tar.gz > checksums.txt)
 ```
 
-The optional npm route (`@october-dev/october-bus@0.1.0-next.14` with
+The optional npm route (`@october-dev/october-bus@0.1.0-next.15` with
 `@october-dev/october-bus-linux-{x64,arm64}` optional dependencies, launcher
 `cli/october-bus.cjs`) carries the same binary but requires Node 20+ on the
 worker; it is documented in [releases.md](releases.md) and is not the managed
