@@ -121,6 +121,9 @@ are never printed.
 `mcp check` reads the file and sends one JSON-RPC `ping` with the execution
 credential. A ping is not an MCP `initialize`, so it cannot count as the harness
 connecting or mark an agent ready, and it never reserves or drains inbox messages.
+`ok` requires a successful JSON-RPC ping result with the matching request ID.
+HTTP 400, an error envelope or an HTML page cannot establish admission; an
+unrecognized refusal reports `protocol` without guessing from the response text.
 `ok` means the route answered and the credential was accepted; agent readiness
 remains the controller's own process evidence. `--json` prints the class,
 endpoint, labels, expiry and whether a hook credential is present, never tokens.

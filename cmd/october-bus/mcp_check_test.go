@@ -58,7 +58,20 @@ func TestMCPCheckClassifiesFailures(t *testing.T) {
 		{"gateway-down", func(w http.ResponseWriter, r *http.Request) { http.Error(w, "down", http.StatusBadGateway) }, nil, "authority-unavailable"},
 		{"mcp-handler-bad-request", func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Bad Request: missing session", http.StatusBadRequest)
-		}, nil, "ok"},
+		}, nil, "protocol"},
+		{"cloud-credential-refusal", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"The worker capability is invalid."}`))
+		}, nil, "protocol"},
+		{"html-success", func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("<html>not an MCP endpoint</html>"))
+		}, nil, "protocol"},
+		{"rpc-error-success-status", func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"masked"}}`))
+		}, nil, "protocol"},
+		{"mismatched-ping-id", func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":2,"result":{}}`))
+		}, nil, "protocol"},
 		{"redirect", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://elsewhere.example/mcp", http.StatusFound)
 		}, nil, "protocol"},

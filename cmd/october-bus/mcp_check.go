@@ -111,15 +111,20 @@ func probeManagedEndpoint(ctx context.Context, connection managedMCPConnection) 
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		data, err := io.ReadAll(io.LimitReader(response.Body, failureBodyLimit+1))
+		var reply struct {
+			JSONRPC string          `json:"jsonrpc"`
+			ID      int             `json:"id"`
+			Result  json.RawMessage `json:"result"`
+			Error   json.RawMessage `json:"error"`
+		}
+		var pong map[string]any
+		if err != nil || len(data) > failureBodyLimit || json.Unmarshal(data, &reply) != nil || reply.JSONRPC != "2.0" || reply.ID != 1 || reply.Error != nil || json.Unmarshal(reply.Result, &pong) != nil || pong == nil {
+			return failureProtocol, "the endpoint did not return a valid MCP ping response"
+		}
 		return "", ""
 	}
-	class, problem := classifyHTTPFailure(response.StatusCode, readFailureBody(response))
-	// A protocol-level answer (for example a JSON-RPC error or a bad-request
-	// reply from the MCP handler) proves the route and credential were accepted.
-	if class == failureProtocol && response.StatusCode == http.StatusBadRequest {
-		return "", ""
-	}
-	return class, problem
+	return classifyHTTPFailure(response.StatusCode, readFailureBody(response))
 }
 
 func printConnectionCheck(out io.Writer, report connectionCheck) {

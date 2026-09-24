@@ -232,6 +232,8 @@ hosted gateway with a live TLS endpoint, laptop-off operation.
 - Hook fixtures now reject `Origin` and `X-October-Caller-Pid`, matching Desktop's
   remote listener. Startup/discovery refusal tests verify that authority response
   bodies and tokens cannot appear in managed bridge diagnostics.
+- The setup probe requires a valid ping result. In particular, Saturday's HTTP
+  400 credential refusal cannot be mistaken for successful admission.
 - The Linux manifest test builds real clean fixture binaries for both
   architectures, verifies their archive/binary hashes and rejects wrong commits,
   dirty source, wrong architecture and absent VCS metadata. Release-policy tests
