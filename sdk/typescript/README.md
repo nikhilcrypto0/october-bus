@@ -2,7 +2,7 @@
 
 Typed clients and protocol definitions for connecting Node.js applications and harness adapters to October Bus.
 
-Starting with `0.1.0-next.14`, this package includes a launcher for the native Go daemon and the TypeScript client. npm installs the matching binary through an exact-version optional dependency; it does not compile Go or run a download script on your machine. Existing TypeScript imports are unchanged. Older npm releases contain only the client.
+Starting with `0.1.0-next.15`, this package includes a launcher for the native Go daemon and the TypeScript client. npm installs the matching binary through an exact-version optional dependency; it does not compile Go or run a download script on your machine. Existing TypeScript imports are unchanged. Older npm releases contain only the client.
 
 The client is in active development and has not reached a stable release. Before 1.0, its API, schemas, and protocol behavior may change between releases.
 
@@ -24,13 +24,13 @@ Install the current prerelease from the `next` tag:
 npm install @october-dev/october-bus@next
 ```
 
-The native CLI commands below require `0.1.0-next.14` to have been published. A development checkout with that version does not establish registry availability. Earlier `next` versions are SDK-only, and unqualified `npx` selects `latest`, not `next`.
+The native CLI commands below require `0.1.0-next.15` to have been published. A development checkout with that version does not establish registry availability. Earlier `next` versions are SDK-only, and unqualified `npx` selects `latest`, not `next`.
 
 Once the CLI-enabled release is published, run it without installing Go:
 
 ```sh
-npx @october-dev/october-bus@0.1.0-next.14 demo
-npx @october-dev/october-bus@0.1.0-next.14 start
+npx @october-dev/october-bus@0.1.0-next.15 demo
+npx @october-dev/october-bus@0.1.0-next.15 start
 ```
 
 macOS, Linux, and Windows binaries are provided for x64 and arm64. Linux binaries are built without CGO. Keep optional dependencies enabled; `--ignore-scripts` is supported. If you installed with `--omit=optional`, reinstall with `--include=optional` to use the CLI. SDK-only consumers can omit the binary packages and keep using a separately installed daemon. Do not copy `node_modules` between platforms.

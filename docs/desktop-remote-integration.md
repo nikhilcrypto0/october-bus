@@ -176,7 +176,7 @@ done
 (cd dist && sha256sum *.tar.gz > checksums.txt)
 ```
 
-The optional npm route (`@october-dev/october-bus@0.1.0-next.14` with
+The optional npm route (`@october-dev/october-bus@0.1.0-next.15` with
 `@october-dev/october-bus-linux-{x64,arm64}` optional dependencies, launcher
 `cli/october-bus.cjs`) carries the same binary but requires Node 20+ on the
 worker; it is documented in [releases.md](releases.md) and is not the managed
@@ -237,7 +237,7 @@ hosted gateway with a live TLS endpoint, laptop-off operation.
 - The Linux manifest test builds real clean fixture binaries for both
   architectures, verifies their archive/binary hashes and rejects wrong commits,
   dirty source, wrong architecture and absent VCS metadata. Release-policy tests
-  still require an independent human approval and a signed release tag.
+  still require [release authorization](releases.md) and a signed release tag.
 
 No release, real SSH/model session, cloud deployment or laptop-off qualification
 was performed by these checks. Those gates remain required before enabling the
