@@ -94,7 +94,9 @@ every tarball against its artifact record and its bundle, pinning the source SHA
 from that run:
 
 ```sh
-gh attestation verify "$TARBALL" --bundle "$TARBALL.sigstore" \
+# GitHub CLI requires a .json or .jsonl extension for a local bundle.
+cp "$TARBALL.sigstore" "$TARBALL.sigstore.json"
+gh attestation verify "$TARBALL" --bundle "$TARBALL.sigstore.json" \
   --repo october-dev/october-bus --digest-alg sha512 \
   --signer-workflow october-dev/october-bus/.github/workflows/publish-npm-prerelease.yml \
   --source-ref refs/heads/main --source-digest "$SOURCE_SHA" \
