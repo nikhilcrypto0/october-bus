@@ -6,7 +6,22 @@ October Bus publishes native runtime archives for macOS, Linux, and Windows on a
 
 A tag matching `v*` runs the full Go and TypeScript validation suite, builds the runtime and conformance runner, creates archives, generates SPDX SBOMs and SHA-256 checksums, attaches GitHub build-provenance attestations, and creates a GitHub release.
 
-The release workflow also requires the tag to identify the merge commit of a main-branch PR with an independent human approval of its final head, submitted before merge by a GitHub owner, member, or collaborator. A trusted reviewer's unresolved changes request blocks release even if a different reviewer approved. Comments and unpublished draft reviews do not replace submitted approvals. Tags on direct commits, unmerged branches, stale approvals, dismissed reviews, post-merge-only approvals, outsider-only approvals, and self-approvals fail verification. This association check is not a replacement for GitHub's code-owner/write-permission rules. The gate supplements live branch and tag protection; it does not configure GitHub settings or create signing identities.
+Release source must identify the merge commit of a main-branch PR. Authorization
+can come from either an independent human approval of its final head, submitted
+before merge by a GitHub owner, member or collaborator, or an explicit release
+action by a human repository administrator. The administrator can dispatch the
+npm workflow on `main` or push the native release tag. The gate checks the
+triggering account's current admin permission through GitHub; rerunning a release
+also checks the account requesting the rerun. This allows an owner to release
+self-authored changes without inventing an independent review.
+
+A trusted reviewer's unresolved changes request blocks both routes. Comments and
+unpublished draft reviews do not replace submitted reviews. Direct commits and
+unmerged branches cannot be released. Without explicit administrator release
+authorization, stale, dismissed, post-merge-only, outsider-only and self-approvals
+fail verification. This gate supplements branch protection and required CI; it
+does not change GitHub settings or create signing identities. Native releases
+still require a signed annotated tag verified by GitHub.
 
 Release binaries embed the version from the tag. Tags containing a hyphen create a prerelease.
 
@@ -34,7 +49,7 @@ protocol version, source commit, `sourceModifiedAtBuild: false` and
 a different commit, a dirty source tree, the wrong architecture or CGO enabled.
 The manifest and a standalone `LICENSE` are included in `checksums.txt` and
 published beside the archives. Consumers can copy the manifest into their pin;
-publication still uses the existing signed-tag and independent-review gates.
+publication still requires release authorization and a verified signed tag.
 
 ## npm CLI and TypeScript distribution
 
@@ -56,7 +71,7 @@ The dispatch workflow retains its `publish-npm-prerelease.yml` filename for trus
 - `candidate`: a stable version, with exact `confirm_version`, published under a non-default `candidate` tag. This does not declare launch readiness.
 - `latest`: promote already-published stable artifacts, never rebuild or republish them. Supply the exact version and original successful candidate workflow's `candidate_run_id`.
 
-Promotion validates the original run's repository, workflow, main branch and success; both the candidate and evidence/promotion commits must meet independent release-review policy. It checks the original tarballs against their original clean source checkout and all seven public registry integrities. Current evidence must pass the exact-version `--require-attestation --launch-core` gate for all six launch hosts. Only then are native tags moved, followed by the parent. A retry repeats exact-version assignments; dist-tags are not transactional. Keep candidate artifacts available until promotion finishes—expired artifacts must not be replaced by an unverified rebuild.
+Promotion validates the original run's repository, workflow, main branch and success; both the candidate and evidence/promotion commits must meet the release-authorization policy above. It checks the original tarballs against their original clean source checkout and all seven public registry integrities. Current evidence must pass the exact-version `--require-attestation --launch-core` gate for all six launch hosts. Only then are native tags moved, followed by the parent. A retry repeats exact-version assignments; dist-tags are not transactional. Keep candidate artifacts available until promotion finishes—expired artifacts must not be replaced by an unverified rebuild.
 
 Evidence normally lands after candidate publication. Rebuilding from the evidence commit would change source identity and make immutable-version promotion impossible; the separate original-artifact lane avoids this cycle.
 
@@ -66,7 +81,42 @@ These checks are necessary, not sufficient for stable launch. Platform execution
 
 ### First-publication setup
 
-The six new package names require maintainer ownership and trusted-publisher configuration for this repository's `publish-npm-prerelease.yml` workflow and `npm` environment, just like the parent package. Complete npm's initial package publication/ownership setup and configure each trusted publisher before attempting the first seven-package release. Authentication failures must not be worked around by publishing a parent package whose binaries are unavailable or disabling provenance. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
+The six new package names require initial publication before npm allows a trusted
+publisher to be configured. The workflow preserves a signed Sigstore provenance
+bundle for each checked tarball after all platform smoke tests pass. A maintainer
+can use those exact CI artifacts and interactive npm authentication to establish
+ownership, with provenance, before enabling trusted publishing. No placeholder
+package or automation token is necessary.
+
+For the first release, download `npm-distribution` and all `npm-provenance-*`
+artifacts from the authorized workflow run. Before publishing anything, verify
+every tarball against its artifact record and its bundle, pinning the source SHA
+from that run:
+
+```sh
+gh attestation verify "$TARBALL" --bundle "$TARBALL.sigstore" \
+  --repo october-dev/october-bus --digest-alg sha512 \
+  --signer-workflow october-dev/october-bus/.github/workflows/publish-npm-prerelease.yml \
+  --source-ref refs/heads/main --source-digest "$SOURCE_SHA" \
+  --deny-self-hosted-runners
+```
+
+Publish the six native packages first with `--tag next --access public
+--ignore-scripts --provenance=false --provenance-file "$TARBALL.sigstore"`.
+Here `--provenance=false` disables local provenance **generation**; the supplied
+signed CI bundle is still verified and attached by npm. It overrides the packed
+manifest's request to generate provenance, which requires a CI runner. Never omit
+the bundle. Preserve all original tarballs for integrity-safe retries.
+
+After each package exists, configure its publisher with `npm trust github
+PACKAGE --repo october-dev/october-bus --file publish-npm-prerelease.yml
+--env npm --allow-publish`. Then rerun the failed publish job: it accepts identical
+native packages and publishes the parent through its existing trusted publisher.
+The initial workflow's publish job may fail while the native names are unowned;
+do not rebuild its artifacts when retrying. Authentication failures must not be
+worked around by publishing a parent whose binaries are unavailable or dropping
+provenance. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)
+and the [`provenance-file` option](https://docs.npmjs.com/cli/v11/using-npm/config#provenance-file).
 
 ### Local package validation
 

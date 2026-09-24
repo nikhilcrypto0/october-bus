@@ -237,7 +237,7 @@ hosted gateway with a live TLS endpoint, laptop-off operation.
 - The Linux manifest test builds real clean fixture binaries for both
   architectures, verifies their archive/binary hashes and rejects wrong commits,
   dirty source, wrong architecture and absent VCS metadata. Release-policy tests
-  still require an independent human approval and a signed release tag.
+  still require [release authorization](releases.md) and a signed release tag.
 
 No release, real SSH/model session, cloud deployment or laptop-off qualification
 was performed by these checks. Those gates remain required before enabling the
