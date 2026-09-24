@@ -32,6 +32,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       - run: node --test scripts/release-policy.test.mjs
+      - run: node --test scripts/managed-runtime-manifest.test.mjs
       - run: go test -race -count=1 ./...
       - run: go vet ./...
       - run: npm ci
@@ -114,13 +115,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test -z "$(git status --porcelain)"
           OCTOBER_BUS_VERSION="${OCTOBER_BUS_VERSION#v}"
           OCTOBER_BUS_DIRECTORY="october-bus_${OCTOBER_BUS_VERSION}_${GOOS}_${GOARCH}"
           mkdir -p "dist/${OCTOBER_BUS_DIRECTORY}"
           OCTOBER_BUS_SUFFIX=""
           if [[ "${GOOS}" == "windows" ]]; then OCTOBER_BUS_SUFFIX=".exe"; fi
-          go build -trimpath -ldflags "-s -w -X github.com/october-dev/october-bus/bus.Version=${OCTOBER_BUS_VERSION}" -o "dist/${OCTOBER_BUS_DIRECTORY}/october-bus${OCTOBER_BUS_SUFFIX}" ./cmd/october-bus
-          go build -trimpath -ldflags "-s -w -X github.com/october-dev/october-bus/bus.Version=${OCTOBER_BUS_VERSION}" -o "dist/${OCTOBER_BUS_DIRECTORY}/october-bus-conformance${OCTOBER_BUS_SUFFIX}" ./cmd/october-bus-conformance
+          go build -buildvcs=true -trimpath -ldflags "-s -w -X github.com/october-dev/october-bus/bus.Version=${OCTOBER_BUS_VERSION}" -o "dist/${OCTOBER_BUS_DIRECTORY}/october-bus${OCTOBER_BUS_SUFFIX}" ./cmd/october-bus
+          go build -buildvcs=true -trimpath -ldflags "-s -w -X github.com/october-dev/october-bus/bus.Version=${OCTOBER_BUS_VERSION}" -o "dist/${OCTOBER_BUS_DIRECTORY}/october-bus-conformance${OCTOBER_BUS_SUFFIX}" ./cmd/october-bus-conformance
           cp LICENSE README.md "dist/${OCTOBER_BUS_DIRECTORY}/"
           cp -R docs spec adapters compatibility assets "dist/${OCTOBER_BUS_DIRECTORY}/"
           if [[ "${GOOS}" == "windows" ]]; then
@@ -164,6 +166,9 @@ jobs:
           - runner: ubuntu-latest
             goos: linux
             goarch: amd64
+          - runner: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
           - runner: macos-latest
             goos: darwin
             goarch: arm64
@@ -187,6 +192,7 @@ jobs:
           OCTOBER_BUS_BINARY="$(find dist -type f -name october-bus -print -quit)"
           test -n "${OCTOBER_BUS_BINARY}"
           "${OCTOBER_BUS_BINARY}" version
+          "${OCTOBER_BUS_BINARY}" version --json | jq -e --arg version "${GITHUB_REF_NAME#v}" '.runtimeVersion == $version and (.protocolVersion | type == "string")'
           "${OCTOBER_BUS_BINARY}" demo
           jq empty dist/*.spdx.json
       - name: Smoke-test Windows archive
@@ -211,11 +217,24 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: 1.27.x
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: dist
           pattern: october-bus-*
           merge-multiple: true
+      - name: Verify Linux source metadata and generate the managed helper manifest
+        run: |
+          set -euo pipefail
+          protocol_version="$(go run ./cmd/october-bus version --json | jq -er .protocolVersion)"
+          node scripts/managed-runtime-manifest.mjs dist "${GITHUB_REF_NAME#v}" "${GITHUB_SHA}" "${protocol_version}"
+          cp LICENSE dist/LICENSE
       - name: Create checksums
         working-directory: dist
         run: |

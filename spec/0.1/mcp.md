@@ -19,6 +19,15 @@ extension; the protocol operations and execution-authority rules stay the same.
 The [hosted gateway](../../deploy/hosted/README.md) can additionally map a connector
 API key to a managed execution without giving that client scope authority.
 
+The reference CLI's third identity is a controller-managed execution file,
+`mcp stdio --connection-file <absolute-private-path>` or `OCTOBER_BUS_CONNECTION_FILE`.
+The host controller mints the execution credential, renews the file atomically and
+retires it; the bridge rereads it per request, pins endpoint/scope/agent/execution,
+and reconnects for the next call after a transport failure without replaying the
+failed one. `mcp check` proves route and credential admission with a JSON-RPC
+`ping`, never an `initialize`. See [managed connections](../../docs/managed-connections.md).
+The three identities are mutually exclusive; mixing any two fails.
+
 ## Required tools
 
 | Tool | Protocol operation |
