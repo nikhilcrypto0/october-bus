@@ -102,11 +102,12 @@ gh attestation verify "$TARBALL" --bundle "$TARBALL.sigstore" \
 ```
 
 Publish the six native packages first with `--tag next --access public
---ignore-scripts --provenance=false --provenance-file "$TARBALL.sigstore"`.
-Here `--provenance=false` disables local provenance **generation**; the supplied
-signed CI bundle is still verified and attached by npm. It overrides the packed
-manifest's request to generate provenance, which requires a CI runner. Never omit
-the bundle. Preserve all original tarballs for integrity-safe retries.
+--ignore-scripts --provenance-file "$TARBALL.sigstore"`. npm verifies and attaches
+the supplied signed CI bundle. Do not also pass `--provenance`, even with a false
+value: npm treats the two CLI options as mutually exclusive. The package manifest
+leaves this choice to the publishing command; the normal CI publisher always
+passes `--provenance` to generate its statement. Never omit the bundle for an
+interactive publication. Preserve all original tarballs for integrity-safe retries.
 
 After each package exists, configure its publisher with `npm trust github
 PACKAGE --repo october-dev/october-bus --file publish-npm-prerelease.yml

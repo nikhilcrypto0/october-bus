@@ -1,9 +1,9 @@
 # October Bus 0.1.0-rc.5 / npm 0.1.0-next.15
 
-These are prerelease notes for the next native runtime and npm distribution.
-Publication is pending the checks in [releases.md](releases.md). The two version
-numbers identify separate distribution channels built from the same reviewed
-source. Protocol version remains `0.1`.
+Native `v0.1.0-rc.5` is available on GitHub Releases. npm `0.1.0-next.15` carries
+the same runtime implementation with a follow-up npm publication metadata fix;
+its publication follows the checks in [releases.md](releases.md). The two version
+numbers identify separate distribution channels. Protocol version remains `0.1`.
 
 ## Changes since native rc.4
 
