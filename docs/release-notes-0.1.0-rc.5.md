@@ -1,9 +1,9 @@
 # October Bus 0.1.0-rc.5 / npm 0.1.0-next.15
 
-Native `v0.1.0-rc.5` is available on GitHub Releases. npm `0.1.0-next.15` carries
-the same runtime implementation with a follow-up npm publication metadata fix;
-its publication follows the checks in [releases.md](releases.md). The two version
-numbers identify separate distribution channels. Protocol version remains `0.1`.
+Native `v0.1.0-rc.5` is available on GitHub Releases and npm `0.1.0-next.15` on the
+`next` channel. The npm release carries the same runtime implementation with a
+follow-up publication metadata fix. The two version numbers identify separate
+distribution channels. Protocol version remains `0.1`.
 
 ## Changes since native rc.4
 
@@ -23,7 +23,7 @@ numbers identify separate distribution channels. Protocol version remains `0.1`.
   registration. Upgrade the runtime together with the SDK; rc.4 does not support
   this contract.
 
-## Installation after publication
+## Installation
 
 For local CLI use with Node 20 or newer:
 

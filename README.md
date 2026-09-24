@@ -95,11 +95,11 @@ october-bus version
 october-bus demo
 ```
 
-### Upcoming npm CLI
+### Native CLI via npm
 
-This branch prepares `0.1.0-next.15`, the first npm package with a native Go CLI as well as the TypeScript client. Preparing the code does not publish the package. Until that version appears in the [npm version history](https://www.npmjs.com/package/@october-dev/october-bus?activeTab=versions), use the archives above or build from source below.
+[`0.1.0-next.15`](https://www.npmjs.com/package/@october-dev/october-bus/v/0.1.0-next.15) includes the native Go CLI and TypeScript client. It is a prerelease; use the explicit version below or the `next` tag.
 
-After publication, no Go installation is needed:
+With Node 20 or newer, no Go installation is needed:
 
 ```bash
 npx @october-dev/october-bus@0.1.0-next.15 demo
@@ -154,7 +154,7 @@ npm install @october-dev/october-bus@next
 For a Go application:
 
 ```bash
-go get github.com/october-dev/october-bus@v0.1.0-rc.4
+go get github.com/october-dev/october-bus@v0.1.0-rc.5
 ```
 
 Import `github.com/october-dev/october-bus/bus` to use the Go client. See [Client SDKs](docs/clients.md) for examples and runtime-version requirements.

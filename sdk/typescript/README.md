@@ -24,9 +24,9 @@ Install the current prerelease from the `next` tag:
 npm install @october-dev/october-bus@next
 ```
 
-The native CLI commands below require `0.1.0-next.15` to have been published. A development checkout with that version does not establish registry availability. Earlier `next` versions are SDK-only, and unqualified `npx` selects `latest`, not `next`.
+The native CLI is available in `0.1.0-next.15`. Earlier published versions are SDK-only, and unqualified `npx` selects `latest`, not `next`; use the explicit version below or `next`.
 
-Once the CLI-enabled release is published, run it without installing Go:
+Run the CLI without installing Go:
 
 ```sh
 npx @october-dev/october-bus@0.1.0-next.15 demo
