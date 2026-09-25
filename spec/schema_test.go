@@ -1,6 +1,7 @@
 package spec_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -120,6 +121,38 @@ func TestProtocolSchemas(t *testing.T) {
 	requireInvalid(t, acknowledgeResult, map[string]any{"acknowledged": float64(-1)})
 	requireInvalid(t, acknowledgeResult, map[string]any{"acknowledged": 1.5})
 	requireInvalid(t, acknowledgeResult, map[string]any{"acknowledged": float64(0), "unknown": true})
+
+	for name, field := range map[string]string{
+		"linkAgentsResult": "linked", "releaseInboxResult": "released",
+	} {
+		result := resolvedSchema(t, path, name)
+		requireValid(t, result, map[string]any{field: true})
+		requireInvalid(t, result, map[string]any{field: false})
+		requireInvalid(t, result, map[string]any{})
+		requireInvalid(t, result, map[string]any{field: true, "unknown": true})
+	}
+
+	completeTask := resolvedSchema(t, path, "completeTaskInput")
+	requireValid(t, completeTask, map[string]any{})
+	requireValid(t, completeTask, map[string]any{"note": ""})
+	requireValid(t, completeTask, map[string]any{"note": "Reviewed and merged"})
+	requireInvalid(t, completeTask, map[string]any{"note": strings.Repeat("x", 16385)})
+	requireInvalid(t, completeTask, map[string]any{"note": "done", "status": "done"})
+
+	resolveEscalation := resolvedSchema(t, path, "resolveEscalationInput")
+	requireValid(t, resolveEscalation, map[string]any{"answer": "yes"})
+	requireInvalid(t, resolveEscalation, map[string]any{})
+	requireInvalid(t, resolveEscalation, map[string]any{"answer": ""})
+	requireInvalid(t, resolveEscalation, map[string]any{"answer": "   "})
+	requireInvalid(t, resolveEscalation, map[string]any{"answer": strings.Repeat("x", 16385)})
+	requireInvalid(t, resolveEscalation, map[string]any{"answer": "yes", "unknown": true})
+
+	for _, name := range []string{"commitInboxResult", "agentList", "taskList", "taskProgressList", "escalationList"} {
+		list := resolvedSchema(t, path, name)
+		requireValid(t, list, []any{})
+		requireInvalid(t, list, map[string]any{})
+		requireInvalid(t, list, []any{map[string]any{"unknown": true}})
+	}
 
 	reserve := resolvedSchema(t, path, "reserveInboxInput")
 	requireValid(t, reserve, map[string]any{"limit": float64(50), "waitMs": float64(25000)})
@@ -453,4 +486,67 @@ func TestReferenceRuntimeResponsesMatchProtocolSchemas(t *testing.T) {
 	escalation, err := reviewer.AskHuman(ctx, bus.AskHumanInput{Question: "Proceed?", Options: []string{"yes", "no"}})
 	requireNoError(t, err)
 	requireValid(t, resolvedSchema(t, path, "humanEscalation"), jsonValue(t, escalation))
+
+	// Results the Go client discards are read from the raw response envelope.
+	postResult := func(route, token string, body any) any {
+		t.Helper()
+		payload, err := json.Marshal(body)
+		requireNoError(t, err)
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, address+route, bytes.NewReader(payload))
+		requireNoError(t, err)
+		request.Header.Set("Authorization", "Bearer "+token)
+		request.Header.Set("Content-Type", "application/json")
+		response, err := http.DefaultClient.Do(request)
+		requireNoError(t, err)
+		defer response.Body.Close()
+		var envelope struct {
+			OK     bool `json:"ok"`
+			Result any  `json:"result"`
+		}
+		requireNoError(t, json.NewDecoder(response.Body).Decode(&envelope))
+		require(t, response.StatusCode == http.StatusOK && envelope.OK, "POST %s: HTTP %d, %#v", route, response.StatusCode, envelope)
+		return envelope.Result
+	}
+	linkInput := map[string]any{"left": "planner", "right": "reviewer"}
+	requireValid(t, resolvedSchema(t, path, "linkAgentsInput"), linkInput)
+	requireValid(t, resolvedSchema(t, path, "linkAgentsResult"), postResult("/v1/links", scope.ScopeToken, linkInput))
+
+	agents, err := owner.ListAgents(ctx)
+	require(t, err == nil && len(agents) == 2, "unexpected agents: %#v, %v", agents, err)
+	requireValid(t, resolvedSchema(t, path, "agentList"), jsonValue(t, agents))
+	peers, err := planner.ListPeers(ctx)
+	require(t, err == nil && len(peers) == 1, "unexpected peers: %#v, %v", peers, err)
+	requireValid(t, resolvedSchema(t, path, "agentList"), jsonValue(t, peers))
+
+	for _, body := range []string{"Commit me", "Release me"} {
+		_, err := planner.SendMessage(ctx, bus.SendMessageInput{To: "reviewer", Body: body})
+		requireNoError(t, err)
+		reservation, err := reviewer.ReserveInbox(ctx, 1, 0)
+		require(t, err == nil && reservation != nil, "unexpected reservation: %#v, %v", reservation, err)
+		if body == "Commit me" {
+			committed, err := reviewer.CommitInbox(ctx, reservation.ID)
+			require(t, err == nil && len(committed) == 1, "unexpected commit: %#v, %v", committed, err)
+			requireValid(t, resolvedSchema(t, path, "commitInboxResult"), jsonValue(t, committed))
+			continue
+		}
+		released := postResult("/v1/inbox/"+reservation.ID+"/release", reviewerRegistration.AgentToken, map[string]any{})
+		requireValid(t, resolvedSchema(t, path, "releaseInboxResult"), released)
+	}
+
+	tasks, err := owner.ListTasks(ctx, false)
+	require(t, err == nil && len(tasks) == 1, "unexpected tasks: %#v, %v", tasks, err)
+	requireValid(t, resolvedSchema(t, path, "taskList"), jsonValue(t, tasks))
+	requireValid(t, resolvedSchema(t, path, "taskProgressList"), jsonValue(t, progressHistory))
+	completeInput := map[string]any{"note": "Reviewed"}
+	requireValid(t, resolvedSchema(t, path, "completeTaskInput"), completeInput)
+	completed := postResult("/v1/tasks/"+task.ID+"/complete", plannerRegistration.AgentToken, completeInput)
+	requireValid(t, resolvedSchema(t, path, "task"), completed)
+
+	escalations, err := owner.ListEscalations(ctx)
+	require(t, err == nil && len(escalations) == 1, "unexpected escalations: %#v, %v", escalations, err)
+	requireValid(t, resolvedSchema(t, path, "escalationList"), jsonValue(t, escalations))
+	resolveInput := map[string]any{"answer": "yes"}
+	requireValid(t, resolvedSchema(t, path, "resolveEscalationInput"), resolveInput)
+	resolved := postResult("/v1/scope/escalations/"+escalation.ID+"/resolve", scope.ScopeToken, resolveInput)
+	requireValid(t, resolvedSchema(t, path, "humanEscalation"), resolved)
 }
