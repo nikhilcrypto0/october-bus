@@ -280,27 +280,8 @@ func RunMCPAdapter(ctx context.Context, options MCPAdapterOptions) (result Resul
 	}()
 
 	if err := record.check("external-heartbeat", func() error {
-		agents, err := owner.ListAgents(ctx)
-		if err != nil {
-			return err
-		}
-		before, err := findAgent(agents, "worker")
-		if err != nil {
-			return err
-		}
-		time.Sleep(250 * time.Millisecond)
-		agents, err = owner.ListAgents(ctx)
-		if err != nil {
-			return err
-		}
-		after, err := findAgent(agents, "worker")
-		if err != nil {
-			return err
-		}
-		if !after.Ready || !after.Reachable || after.UpdatedAt == before.UpdatedAt {
-			return fmt.Errorf("heartbeat did not renew the ready execution: %#v", after)
-		}
-		return nil
+		return awaitHeartbeatRenewal(ctx, owner.ListAgents, "worker", workerSession.Registration.ExecutionID,
+			workerSession, heartbeatRenewalTimeout, heartbeatPollInterval)
 	}); err != nil {
 		return result, err
 	}
