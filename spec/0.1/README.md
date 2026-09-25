@@ -82,8 +82,13 @@ Delivery states are:
 
 ```text
 queued -> reserved -> delivered -> acknowledged
-   └──────────────────────────────> expired
+   ▲         │   ▲         │
+   └─release─┘   └─reserve─┘ (redelivery of an unacknowledged message)
+
+queued, reserved, or delivered -> expired
 ```
+
+[State machines](state-machines.md) lists every transition with its trigger, credential, errors, and event.
 
 Reservations prevent two concurrent delivery attempts from consuming the same inbox item. A reservation expires after 30 seconds in the reference runtime. Releasing or expiring a reservation makes an undelivered message available again. Delivered but unacknowledged messages MAY be redelivered.
 
@@ -271,6 +276,7 @@ Uses the same semantics through public APIs and MAY add host hooks for stronger 
 
 ## Related documents
 
+- [State machines](state-machines.md)
 - [HTTP API](http.md)
 - [MCP mapping](mcp.md)
 - [Adapter contract](adapters.md)
