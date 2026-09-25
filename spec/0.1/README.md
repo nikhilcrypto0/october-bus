@@ -165,7 +165,7 @@ Protocol 0.1 defines these event types:
 - `a2a.task_created`, `a2a.message_accepted`, and `a2a.task_state_changed`
 - `credential.created`, `credential.rotated`, `credential.enabled`, and `credential.disabled`
 - `output.stream_created`, `output.stream_removed`, `output.publisher_added`, `output.publisher_removed`, and `output.published`
-- `scope.imported`
+- `scope.imported` and `scope.credentials_rotated`
 
 Each listed transition event MUST be committed atomically with the transition it describes. Retrying an idempotent operation that made no new state change MUST NOT append another event. A heartbeat that only renews a lease does not append a lifecycle event.
 
