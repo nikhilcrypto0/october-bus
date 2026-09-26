@@ -1597,7 +1597,11 @@ func (s *Store) ResolveEscalation(ctx context.Context, scopeID, escalationID, an
 	}
 	changed, _ := result.RowsAffected()
 	if changed != 1 {
-		return HumanEscalation{}, Errorf(CodeConflict, "Escalation is not pending")
+		// Distinguish an unknown escalation (NOT_FOUND) from one that was already resolved (CONFLICT).
+		if _, err := escalationFrom(ctx, tx, scopeID, escalationID); err != nil {
+			return HumanEscalation{}, err
+		}
+		return HumanEscalation{}, Errorf(CodeConflict, "Escalation is already resolved")
 	}
 	var agentID string
 	if err := tx.QueryRowContext(ctx, `SELECT agent_id FROM escalations WHERE scope_id=? AND escalation_id=?`, scopeID, escalationID).Scan(&agentID); err != nil {
