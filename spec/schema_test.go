@@ -136,6 +136,7 @@ func TestProtocolSchemas(t *testing.T) {
 	requireValid(t, completeTask, map[string]any{})
 	requireValid(t, completeTask, map[string]any{"note": ""})
 	requireValid(t, completeTask, map[string]any{"note": "Reviewed and merged"})
+	requireInvalid(t, completeTask, map[string]any{"note": "   "})
 	requireInvalid(t, completeTask, map[string]any{"note": strings.Repeat("x", 16385)})
 	requireInvalid(t, completeTask, map[string]any{"note": "done", "status": "done"})
 

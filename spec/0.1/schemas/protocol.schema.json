@@ -181,45 +181,6 @@
       "required": ["retired"],
       "properties": { "retired": { "const": true } }
     },
-    "linkAgentsResult": {
-      "type": "object", "additionalProperties": false,
-      "required": ["linked"],
-      "properties": { "linked": { "const": true } }
-    },
-    "releaseInboxResult": {
-      "type": "object", "additionalProperties": false,
-      "required": ["released"],
-      "properties": { "released": { "const": true } }
-    },
-    "commitInboxResult": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/message" }
-    },
-    "agentList": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/agent" }
-    },
-    "taskList": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/task" }
-    },
-    "taskProgressList": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/taskProgress" }
-    },
-    "completeTaskInput": {
-      "type": "object", "additionalProperties": false,
-      "properties": { "note": { "type": "string", "maxLength": 16384 } }
-    },
-    "escalationList": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/humanEscalation" }
-    },
-    "resolveEscalationInput": {
-      "type": "object", "additionalProperties": false,
-      "required": ["answer"],
-      "properties": { "answer": { "type": "string", "minLength": 1, "maxLength": 16384, "pattern": "\\S" } }
-    },
     "deleteScopeInput": {
       "type": "object", "additionalProperties": false,
       "required": ["confirmScopeId"],
@@ -273,6 +234,10 @@
         "updatedAt": { "$ref": "#/$defs/instant" }
       }
     },
+    "agentList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/agent" }
+    },
     "linkAgentsInput": {
       "type": "object",
       "additionalProperties": false,
@@ -281,6 +246,11 @@
         "left": { "$ref": "#/$defs/identifier" },
         "right": { "$ref": "#/$defs/identifier" }
       }
+    },
+    "linkAgentsResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["linked"],
+      "properties": { "linked": { "const": true } }
     },
     "sendMessageInput": {
       "type": "object",
@@ -389,6 +359,15 @@
         "messages": { "type": "array", "items": { "$ref": "#/$defs/message" } }
       }
     },
+    "commitInboxResult": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/message" }
+    },
+    "releaseInboxResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["released"],
+      "properties": { "released": { "const": true } }
+    },
     "addTaskInput": {
       "type": "object",
       "additionalProperties": false,
@@ -430,6 +409,10 @@
         "createdAt": { "$ref": "#/$defs/instant" }
       }
     },
+    "taskProgressList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/taskProgress" }
+    },
     "task": {
       "type": "object",
       "additionalProperties": false,
@@ -469,6 +452,14 @@
           "else": { "required": ["claimedBy"] }
         }
       ]
+    },
+    "taskList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/task" }
+    },
+    "completeTaskInput": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "note": { "type": "string", "maxLength": 16384, "pattern": "^$|\\S" } }
     },
     "busEvent": {
       "type": "object",
@@ -841,6 +832,15 @@
         "createdAt": { "$ref": "#/$defs/instant" },
         "resolvedAt": { "$ref": "#/$defs/instant" }
       }
+    },
+    "escalationList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/humanEscalation" }
+    },
+    "resolveEscalationInput": {
+      "type": "object", "additionalProperties": false,
+      "required": ["answer"],
+      "properties": { "answer": { "type": "string", "maxLength": 16384, "pattern": "\\S" } }
     },
     "error": {
       "type": "object",

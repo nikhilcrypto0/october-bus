@@ -479,6 +479,14 @@ func TestHumanEscalationIsDurableAndScopeOwned(t *testing.T) {
 	require(t, err == nil && len(values) == 1 && values[0].ID == escalation.ID, "unexpected escalations: %#v, %v", values, err)
 	resolved, err := agents.runtime.ResolveEscalation(ctx, agents.scope.ScopeToken, escalation.ID, "no")
 	require(t, err == nil && resolved.Status == "resolved" && resolved.Answer == "no", "unexpected resolution: %#v, %v", resolved, err)
+
+	// An unknown escalation is NOT_FOUND; resolving again is CONFLICT and keeps the first answer.
+	_, err = agents.runtime.ResolveEscalation(ctx, agents.scope.ScopeToken, "esc_missing", "yes")
+	requireCode(t, err, CodeNotFound)
+	_, err = agents.runtime.ResolveEscalation(ctx, agents.scope.ScopeToken, escalation.ID, "yes")
+	requireCode(t, err, CodeConflict)
+	values, err = agents.runtime.ListEscalations(ctx, agents.scope.ScopeToken)
+	require(t, err == nil && len(values) == 1 && values[0].Answer == "no", "second resolution changed the answer: %#v, %v", values, err)
 }
 
 func TestPendingEscalationsApplyPerAgentBackpressure(t *testing.T) {

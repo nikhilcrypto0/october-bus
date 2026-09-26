@@ -137,7 +137,7 @@ func TestAwaitHeartbeatRenewalRespectsContextDeadline(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a timeout")
 	}
-	if elapsed := time.Since(started); elapsed > 5*time.Second {
+	if elapsed := time.Since(started); elapsed > time.Second {
 		t.Fatalf("wait ignored the context deadline: %s", elapsed)
 	}
 }
